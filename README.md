@@ -1,6 +1,6 @@
 # Solar-SisTerms-N-Conditions
 
-**Some fails moments:**
+**Some fail moments:**
 
 https://github.com/user-attachments/assets/17953e8f-0e18-42f9-880b-d936e1a0087c
 
