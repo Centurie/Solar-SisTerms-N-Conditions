@@ -1,198 +1,90 @@
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <iostream>
-#include <vector>
-#include <array>
+#include "raylib.h"
 #include <cmath>
+#include <algorithm>
+#include <cassert>
 
-namespace CircleSettings
+constexpr int screenWidth = 1260;
+constexpr int screenHeight = 850;
+constexpr float gravity = 1.8f;
+
+namespace ballSettings
 {
-    float totalRadians{2*3.14159265f};
+	int ballRad{50};
+	float ballX{ static_cast<float>(screenWidth) / 2 };
+	float ballY{ static_cast<float>(screenHeight) / 2 };
+	Color ballColor = RED;
+
+	constexpr float cRestitution{ 0.7f };
+	int nBounce{ 0 };
+	static_assert(cRestitution <= 1, "Coeff of Restitution cannot be greater than 1");
 }
 
-
-namespace Gravity
+float calculateMaxVelocity(float ballPosY)
 {
-    int g = 9;
-    const float G = 0.6;
+	float heightGained = std::max(0.0f, (screenHeight - ballSettings:: ballRad) - ballPosY);
+	return std::sqrt(2.0f * gravity * heightGained)* std::pow(ballSettings::cRestitution, ballSettings::nBounce);
 }
 
-float cos(float theta)
+int main(void)
 {
-    if (theta > 3.14159265f) theta -= 6.2831853f;
-    if (theta < -3.14159265f) theta += 6.2831853f;
+	SetConfigFlags(FLAG_WINDOW_TOPMOST);
+	float velocity{ 0 };
 
-    // Taylor cabbage
-    float term1 { 1.0f };
-    float theta2 {theta * theta};
-    float term2 {- theta2 / 2.0f};
-    float term4 { (theta2 * theta2) / 24.0f};
-    float term6 {- (theta2 * theta2 * theta2) / 720.0f};  
-    float term8 = (theta2 * theta2 * theta2 * theta2) / 40320.0f;
+	InitWindow(screenWidth, screenHeight, "RayLib, Everything OPENGL but PACKAGED");
 
-    return term1 + term2 + term4 + term6 + term8;
-}
+	Vector2 ballPos{ ballSettings::ballX, ballSettings::ballY };
 
-float sin(float theta)
-{
-    if (theta > 3.14159265f) theta -= 6.2831853f;
-    if (theta < -3.14159265f) theta += 6.2831853f;
+	SetTargetFPS(64);
+	HideCursor();
+	while (!WindowShouldClose())
+	{
+		if (IsKeyPressed(KEY_H))
+		{
+			if (IsCursorHidden()) ShowCursor();
+			else HideCursor();
+		}
+		if (!IsCursorHidden()) {
+			ballPos = GetMousePosition(); 
+			ballSettings::nBounce = 0;
+			velocity = 0;
+			ballSettings::ballY = ballPos.y;
+			ballSettings::ballX = ballPos.x;
+		}
+		else velocity += gravity;
 
-    float term1 { theta };
-    float theta2 {theta * theta};
-    float term3 {- (theta2 * theta) / 6.0f};
-    float term5 { (theta2 * theta2 * theta) / 120.0f};
-    float term7 {- (theta2 * theta2 * theta2 * theta) / 5040.0f};  
-    float term9 = (theta2 * theta2 * theta2 * theta2 * theta) / 362880.0f;
 
-    return term1 + term3 + term5 + term7 +term9;
-}
+		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) ballSettings:: ballColor = MAROON;
+		else if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) ballSettings::ballColor = LIME;
+		else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) ballSettings::ballColor = DARKBLUE;
+		else if (IsMouseButtonPressed(MOUSE_BUTTON_SIDE)) ballSettings::ballColor = PURPLE;
+		else if (IsMouseButtonPressed(MOUSE_BUTTON_EXTRA)) ballSettings::ballColor = YELLOW;
+		else if (IsMouseButtonPressed(MOUSE_BUTTON_FORWARD)) ballSettings::ballColor = ORANGE;
+		else if (IsMouseButtonPressed(MOUSE_BUTTON_BACK)) ballSettings::ballColor = BEIGE;
 
-void drawCircle(float cx, float cy, float r)
-{   
-    glBegin(GL_TRIANGLE_FAN);   
-    glVertex2f(cx,cy); // 0,0
-    for (float i {0}; i <= CircleSettings::totalRadians;)
-    {
-        glVertex2f(cx + r*cos(i), cy + r*sin(i));
-        i += 0.01f;
-    }
-    glEnd();
-}
+		if (ballPos.y >= screenHeight - ballSettings::ballRad)
+		{
+			ballSettings::nBounce += 1;
+			ballPos.y = screenHeight - ballSettings::ballRad;
+			velocity = -calculateMaxVelocity(ballSettings::ballY);
 
-struct Planet {
-    std::string_view name{};
-    float x, y;
-    float vx, vy;
-    float r;
-    float m;
-    float cr, cg, cb;
-    float maxVel;
-};
+		}
+		ballPos.y += velocity;
 
-std::array <Planet, 4> planets = {{
-   //           x     y    vx    vy   r     m    cr    cg    cb
-    {"Sun",    0,    0,    0.0,      0.0,   40, 4000, 1.00, 0.78, 0.25,0 }, // sun
-    {"Earth",  140,    0,  0.0,   -4.1,   16,   20, 0.35, 0.62, 1.00,0 }, // earth
-    {"Mars", -160, -160,   -2.3,    +2.3,  12, 12, 0.90, 0.38, 0.24,0 }, // mars
-    {"Fantasy World", -170,  170, -2.2,  +2.2, 14,   14, 0.70, 0.55, 1.00,0 }, // Fantasy world
-}};  
+		if (IsKeyDown(KEY_RIGHT)) { ballPos.x += 3.0f; };
+		if (IsKeyDown(KEY_LEFT)) { ballPos.x -= 3.0f; };
+		if (IsKeyDown(KEY_UP)) { ballPos.y -= 3.0f; };
+		if (IsKeyDown(KEY_DOWN)) { ballPos.y += 3.0f; };
 
-int main()
-{
-    std::cout << "We gonna build a solar system here." << '\n';
-    if (!glfwInit())
-    {
-        std::cerr << "glfw did not start\n";
-        return -1; 
-    }
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Solar system", nullptr, nullptr);
-    if (!window)
-    {
-        std::cerr << "no window for you!\n";
-        glfwTerminate();
-        return -1;
-    }
-    glfwMakeContextCurrent(window);
-    glewInit();
+		BeginDrawing();
+		ClearBackground(RAYWHITE);
+		DrawText(TextFormat("Pos: [%.2f, %.2f]", ballPos.x, ballPos.y), ballPos.x + 70, ballPos.y - 70, 22, DARKGRAY);
+		DrawText("My first raylib code.", 10, screenHeight - 90, 24, RED);
+		DrawText("Press \"H\" to show / hide cursor", 10, screenHeight - 60, 24, RED);
+		DrawCircleV(ballPos, ballSettings::ballRad, ballSettings::ballColor);
+		EndDrawing();
+	}
 
-    glfwSwapInterval(1);
+	CloseWindow();	
 
-    glViewport(0,0, 800, 600);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(-400, 400, -300, 300, -1, 1);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    // for maxVelocity during bouncing and overshoot due to extra KE
-    for (auto& p: planets)
-    {
-        p.maxVel = std::pow(p.vy * p.vy + 2* Gravity::g * std::abs(-300 - p.y), 0.5);
-    }
-    for (const auto& p: planets)
-    {
-        std::cout << p.name << ' ' << p.maxVel <<'\n';
-    }
-    // bouncing stuff loop ends
-
-    while (!glfwWindowShouldClose(window))
-    {
-        glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        for (auto& p : planets) 
-        {
-            // for bouncing pattern
-            // if (p.y <= -300)
-            // {
-            //     p.y = -300;
-            //     p.vy = p.maxVel;
-            // }
-            
-            // p.y += p.vy;
-            // p.vy -= Gravity::g;
-                    float total_ax = 0.0f;
-        float total_ay = 0.0f;
-        bool collapsedIntoSun = false;
-
-        // Accumulate gravity forces ONLY
-        for (auto& other : planets) 
-        {
-            if (&other == &p) continue;
-
-            float dx = other.x - p.x;
-            float dy = other.y - p.y;
-            float rSquared = dx * dx + dy * dy;
-
-            // softening clamp to keep math safe during approach 
-            if (rSquared < 1600.0f) rSquared = 1600.0f; 
-
-            float a_magnitude = (Gravity::G * other.m) / rSquared;
-            float r = std::sqrt(rSquared);
-
-            total_ax += a_magnitude * (dx / r);
-            total_ay += a_magnitude * (dy / r);
-
-            if (other.name == planets[0].name) {
-                if (r <= (p.r + other.r)) {
-                    collapsedIntoSun = true;
-                }
-            }
-        }
-
-        if (collapsedIntoSun) 
-        {
-            p.vx = planets[0].vx;
-            p.vy = planets[0].vy;
-
-            float dx = planets[0].x - p.x;
-            float dy = planets[0].y - p.y;
-            float r = std::sqrt(dx * dx + dy * dy);
-            if (r < 0.1f) r = 0.1f;
-    
-            float contactDist = p.r + planets[0].r;
-            p.x = planets[0].x - (dx / r) * contactDist;
-            p.y = planets[0].y - (dy / r) * contactDist;
-        } 
-        else 
-        {
-            p.vx += total_ax;
-            p.vy += total_ay;
-            p.x += p.vx;
-            p.y += p.vy;
-        }
-
-        // Render step
-        glColor3f(p.cr, p.cg, p.cb);
-        drawCircle(p.x, p.y, p.r);
-
-        }
-
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
-
-    glfwTerminate();
-    return 0;
+	return 0;	
 }
